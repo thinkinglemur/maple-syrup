@@ -122,7 +122,7 @@ _write_gitignore() {
   if [[ -f ".gitignore" ]]; then
     info ".gitignore already exists – appending new entries only"
     {
-      printf '\n# ── Added by project-bootstrap ──\n'
+      printf '\n# ── Added by maple-syrup ──\n'
       for entry in "${base_entries[@]}" "${lang_entries[@]}" "${docker_entries[@]}"; do
         # Only add if line not already present
         if [[ -n "$entry" ]] && ! grep -qF "$entry" .gitignore 2>/dev/null; then

@@ -75,7 +75,7 @@ Two aider config files are written:
 ## Repository structure
 
 ```
-project-bootstrap/
+maple-syrup/
 ├── setup.sh                        # Main entry point
 ├── lib/
 │   ├── colours.sh                  # Terminal colour helpers
