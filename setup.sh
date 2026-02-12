@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# Note: intentionally NOT using set -e so errors are handled explicitly with clear messages
 
 # Require bash 4+ for full feature support.
 # macOS ships bash 3.2 — install a modern bash via Homebrew:
@@ -29,7 +29,7 @@ if [[ ! -d "$LIB" ]]; then
   echo "  This usually means you only downloaded setup.sh rather than cloning"
   echo "  the full repository. Please run:"
   echo ""
-  echo "    git clone https://github.com/your-org/maple-syrup.git"
+  echo "    git clone https://github.com/thinkinglemur/maple-syrup.git"
   echo "    cd maple-syrup"
   echo "    chmod +x setup.sh && ./setup.sh"
   echo ""
@@ -56,7 +56,7 @@ source "$LIB/generators/generate_init.sh"
 clear
 echo ""
 echo -e "${CYAN}╔══════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║       🚀  maple-syrup  🚀                 ║${NC}"
+echo -e "${CYAN}║       🚀  maple-syrup  🚀          ║${NC}"
 echo -e "${CYAN}║   Bootstrap any project in minutes       ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════╝${NC}"
 echo ""
@@ -84,7 +84,16 @@ fi
 ok "Synopsis captured (${#PROJECT_SYNOPSIS} chars)"
 
 # ── Step 4: Claude suggests the stack ─────────
-SUGGESTIONS=$(claude_suggest_stack "$PROJECT_SYNOPSIS" "$ANTHROPIC_API_KEY")
+CLAUDE_RESULT_FILE=$(mktemp)
+export CLAUDE_RESULT_FILE
+claude_suggest_stack "$PROJECT_SYNOPSIS" "$ANTHROPIC_API_KEY"
+if [[ ! -s "$CLAUDE_RESULT_FILE" ]]; then
+  error "No response received from Claude. Check your API key and internet connection."
+  rm -f "$CLAUDE_RESULT_FILE"
+  exit 1
+fi
+SUGGESTIONS=$(cat "$CLAUDE_RESULT_FILE")
+rm -f "$CLAUDE_RESULT_FILE"
 parse_suggestions "$SUGGESTIONS"
 
 # ── Step 5: Review / override suggestions ─────

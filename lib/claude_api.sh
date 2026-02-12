@@ -2,6 +2,7 @@
 # lib/claude_api.sh – Claude API key prompt and stack suggestion call
 
 ANTHROPIC_API_KEY=""
+CLAUDE_RESULT_FILE=""
 
 prompt_claude_api_key() {
   # Check env first
@@ -152,7 +153,8 @@ Rules:
   # Strip any accidental markdown fences
   text=$(echo "$text" | sed 's/^```json[[:space:]]*//' | sed 's/^```[[:space:]]*//' | sed 's/```[[:space:]]*$//')
 
-  echo "$text"
+  # Write result to file (avoids subshell stdout-capture swallowing spinner output)
+  echo "$text" > "$CLAUDE_RESULT_FILE"
 }
 
 # ── Parse JSON suggestions into global vars ───────────────────────────────────
