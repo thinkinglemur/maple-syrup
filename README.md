@@ -1,4 +1,4 @@
-# project-bootstrap
+# maple-syrup
 
 > Clone once. Answer a few questions. Get a fully scaffolded project with CI/CD, Docker, observability and AI coding assistance — in minutes.
 
@@ -34,8 +34,8 @@
 
 ```bash
 # 1. Clone this repo
-git clone https://github.com/your-org/project-bootstrap.git
-cd project-bootstrap
+git clone https://github.com/thinkinglemur/maple-syrup.git
+cd maple-syrup
 
 # 2. Make setup.sh executable
 chmod +x setup.sh
