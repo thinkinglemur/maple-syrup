@@ -21,6 +21,9 @@ configure_aider() {
     *) AIDER_MODEL="claude-sonnet-4-5-20250929" ;;
   esac
 
+  # ── Prompt for the model's API key ────────────────────────────
+  _prompt_model_api_key
+
   echo ""
   echo -e "  ${BOLD}Aider editor mode:${NC}"
   echo "    1) ask    ← default (Claude proposes edits, you approve)"
@@ -42,14 +45,73 @@ configure_aider() {
   ok "Aider configured → .aider.conf.yml + .aider.model.settings.yml"
 }
 
+_prompt_model_api_key() {
+  local env_var label url existing
+
+  case "$AIDER_MODEL" in
+    claude-*)
+      env_var="ANTHROPIC_API_KEY"
+      label="Anthropic"
+      url="https://console.anthropic.com/settings/keys"
+      ;;
+    gpt-*)
+      env_var="OPENAI_API_KEY"
+      label="OpenAI"
+      url="https://platform.openai.com/api-keys"
+      ;;
+    gemini/*)
+      env_var="GEMINI_API_KEY"
+      label="Google Gemini"
+      url="https://aistudio.google.com/app/apikey"
+      ;;
+  esac
+
+  echo ""
+
+  # Check if already set in env or .env file
+  existing="${!env_var:-}"
+  if [[ -z "$existing" && -f ".env" ]]; then
+    existing=$(grep "^${env_var}=" .env 2>/dev/null | cut -d'=' -f2- | tr -d '"'"'" | xargs)
+  fi
+
+  if [[ -n "$existing" ]]; then
+    ok "${env_var} already set — skipping"
+    # Make sure it's exported for aider to pick up
+    export "${env_var}=${existing}"
+    return
+  fi
+
+  echo -e "  ${BOLD}${label} API key required for ${AIDER_MODEL}${NC}"
+  echo -e "  ${DIM}Get one at: ${url}${NC}"
+  echo ""
+  ask "Enter your ${label} API key:"
+  read -r -s model_api_key
+  echo ""
+
+  if [[ -z "$model_api_key" ]]; then
+    warn "${env_var} not set — aider will prompt for it when you run it"
+    return
+  fi
+
+  # Save to .env (append if not already present)
+  if [[ -f ".env" ]] && grep -q "^${env_var}=" .env; then
+    # Update existing line
+    sed -i.bak "s|^${env_var}=.*|${env_var}=${model_api_key}|" .env && rm -f .env.bak
+  else
+    echo "${env_var}=${model_api_key}" >> .env
+  fi
+
+  export "${env_var}=${model_api_key}"
+  ok "${env_var} saved to .env"
+}
+
 _write_aider_conf() {
-  # Determine weak model (fast/cheap model for trivial tasks)
   local weak_model
   case "$AIDER_MODEL" in
-    claude-*) weak_model="claude-3-5-haiku-20241022" ;;
+    claude-*) weak_model="claude-haiku-4-5-20251001" ;;
     gpt-*)    weak_model="gpt-4o-mini" ;;
     gemini/*) weak_model="gemini/gemini-2.0-flash" ;;
-    *)        weak_model="claude-3-5-haiku-20241022" ;;
+    *)        weak_model="claude-haiku-4-5-20251001" ;;
   esac
 
   cat > .aider.conf.yml <<EOF
@@ -69,7 +131,6 @@ attribute-author: false
 attribute-committer: false
 
 # ── Context ───────────────────────────────────
-# Automatically include files git says are modified
 auto-read-files: true
 
 # ── Output ────────────────────────────────────
@@ -87,16 +148,16 @@ _write_aider_model_settings() {
 
 - name: claude-sonnet-4-5-20250929
   edit_format: diff
-  weak_model_name: claude-3-5-haiku-20241022
+  weak_model_name: claude-haiku-4-5-20251001
   use_repo_map: true
   send_undo_reply: true
   lazy: false
   reminder: sys
   examples_as_sys_msg: false
 
-- name: claude-3-5-haiku-20241022
+- name: claude-haiku-4-5-20251001
   edit_format: whole
-  weak_model_name: claude-3-5-haiku-20241022
+  weak_model_name: claude-haiku-4-5-20251001
   use_repo_map: false
 
 - name: gpt-4o
