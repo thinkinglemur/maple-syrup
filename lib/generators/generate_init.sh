@@ -153,8 +153,9 @@ TS_INIT
     "Next.js")
       cat >> "$out" <<'NEXTJS'
 
-# Bootstrap Next.js (App Router, TypeScript, Tailwind, ESLint)
-$PMX create-next-app@latest . \
+# Bootstrap Next.js into a temp dir then merge back (avoids "directory contains files" error)
+SCAFFOLD_TMP=$(mktemp -d)
+$PMX create-next-app@latest "$SCAFFOLD_TMP/scaffold" \
   --typescript \
   --tailwind \
   --eslint \
@@ -163,20 +164,29 @@ $PMX create-next-app@latest . \
   --import-alias "@/*" \
   --no-git \
   --yes
+# Merge scaffold into current directory (existing files like .gitignore are kept)
+cp -rn "$SCAFFOLD_TMP/scaffold/." .
+rm -rf "$SCAFFOLD_TMP"
 ok "Next.js scaffolded"
 NEXTJS
       ;;
     "Remix")
       cat >> "$out" <<'REMIX'
 
-$PMX create-remix@latest . --template remix-run/remix/templates/remix --typescript --no-git
+SCAFFOLD_TMP=$(mktemp -d)
+$PMX create-remix@latest "$SCAFFOLD_TMP/scaffold" --template remix-run/remix/templates/remix --typescript --no-git
+cp -rn "$SCAFFOLD_TMP/scaffold/." .
+rm -rf "$SCAFFOLD_TMP"
 ok "Remix scaffolded"
 REMIX
       ;;
     "NestJS")
       cat >> "$out" <<'NESTJS'
 
-$PMX @nestjs/cli new . --package-manager "${PM}" --skip-git --strict
+SCAFFOLD_TMP=$(mktemp -d)
+$PMX @nestjs/cli new "$SCAFFOLD_TMP/scaffold" --package-manager "${PM}" --skip-git --strict
+cp -rn "$SCAFFOLD_TMP/scaffold/." .
+rm -rf "$SCAFFOLD_TMP"
 ok "NestJS scaffolded"
 NESTJS
       ;;
