@@ -64,7 +64,7 @@ During setup you choose the aider model:
 
 | Option | Model | Best for |
 |--------|-------|----------|
-| 1 (default) | `claude-3-5-sonnet-20241022` | Most tasks — fast and smart |
+| 1 (default) | `claude-sonnet-4-5-20250929` | Most tasks — fast and smart |
 | 2 | `gpt-4o` | If you prefer OpenAI |
 | 3 | `gemini/gemini-2.5-pro` | Long context, extended thinking |
 

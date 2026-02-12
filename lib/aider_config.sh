@@ -7,7 +7,7 @@ AIDER_EDITOR_MODE=""
 configure_aider() {
   echo ""
   echo -e "  ${BOLD}Aider model:${NC}"
-  echo "    1) claude-3-5-sonnet-20241022  ← default (fast, great for most tasks)"
+  echo "    1) claude-sonnet-4-5-20250929  ← default (fast, great for most tasks)"
   echo "    2) gpt-4o"
   echo "    3) gemini/gemini-2.5-pro"
   echo ""
@@ -15,10 +15,10 @@ configure_aider() {
   read -r model_choice
 
   case "${model_choice:-1}" in
-    1) AIDER_MODEL="claude-3-5-sonnet-20241022" ;;
+    1) AIDER_MODEL="claude-sonnet-4-5-20250929" ;;
     2) AIDER_MODEL="gpt-4o" ;;
     3) AIDER_MODEL="gemini/gemini-2.5-pro" ;;
-    *) AIDER_MODEL="claude-3-5-sonnet-20241022" ;;
+    *) AIDER_MODEL="claude-sonnet-4-5-20250929" ;;
   esac
 
   echo ""
@@ -85,7 +85,7 @@ _write_aider_model_settings() {
 ## See: https://aider.chat/docs/config/adv-model-settings.html
 ##      https://aider.chat/docs/config/reasoning.html
 
-- name: claude-3-5-sonnet-20241022
+- name: claude-sonnet-4-5-20250929
   edit_format: diff
   weak_model_name: claude-3-5-haiku-20241022
   use_repo_map: true
