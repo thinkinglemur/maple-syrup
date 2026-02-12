@@ -47,6 +47,9 @@ ok "Directories created"
 
 DIRS
 
+  # ── Tool version checks ─────────────────────────────────────
+  _append_tool_checks "$out"
+
   # ── Language-specific init ───────────────────────────────────
   _append_language_init "$out"
 
@@ -121,10 +124,11 @@ _append_typescript_init() {
 
 step "Initialising TypeScript project..."
 
-# Detect package manager
+# Detect package manager + executor (npx / pnpm dlx / bunx)
 PM="npm"
-command -v pnpm &>/dev/null && PM="pnpm"
-command -v bun  &>/dev/null && PM="bun"
+PMX="npx"
+command -v pnpm &>/dev/null && PM="pnpm" && PMX="pnpm dlx"
+command -v bun  &>/dev/null && PM="bun"  && PMX="bunx"
 info "Using package manager: $PM"
 
 # package.json
@@ -150,7 +154,7 @@ TS_INIT
       cat >> "$out" <<'NEXTJS'
 
 # Bootstrap Next.js (App Router, TypeScript, Tailwind, ESLint)
-$PM dlx create-next-app@latest . \
+$PMX create-next-app@latest . \
   --typescript \
   --tailwind \
   --eslint \
@@ -165,14 +169,14 @@ NEXTJS
     "Remix")
       cat >> "$out" <<'REMIX'
 
-$PM dlx create-remix@latest . --template remix-run/remix/templates/remix --typescript --no-git
+$PMX create-remix@latest . --template remix-run/remix/templates/remix --typescript --no-git
 ok "Remix scaffolded"
 REMIX
       ;;
     "NestJS")
       cat >> "$out" <<'NESTJS'
 
-$PM dlx @nestjs/cli new . --package-manager "${PM}" --skip-git --strict
+$PMX @nestjs/cli new . --package-manager "${PM}" --skip-git --strict
 ok "NestJS scaffolded"
 NESTJS
       ;;
@@ -1263,4 +1267,375 @@ MIT
 READMEEOF
 ok "README.md written"
 README_START
+}
+
+# ─────────────────────────────────────────────────────────────
+#  Tool version checker — embedded into init.sh
+# ─────────────────────────────────────────────────────────────
+_append_tool_checks() {
+  local out="$1"
+
+  # Write the universal helper functions first
+  cat >> "$out" <<'TOOL_CHECKS_HEADER'
+
+# ─────────────────────────────────────────────────────────────
+#  Tool version checks
+# ─────────────────────────────────────────────────────────────
+
+# Minimum versions
+MIN_NODE_MAJOR=20
+MIN_NPM_MAJOR=10
+MIN_PNPM_MAJOR=9
+MIN_BUN_MAJOR=1
+MIN_PYTHON_MAJOR=3
+MIN_PYTHON_MINOR=12
+MIN_RUST_MAJOR=1
+MIN_RUST_MINOR=77
+MIN_GO_MAJOR=1
+MIN_GO_MINOR=22
+MIN_PHP_MAJOR=8
+MIN_PHP_MINOR=2
+
+# Load nvm if present (it's a shell function, not a binary)
+_load_nvm() {
+  if [[ -s "$HOME/.nvm/nvm.sh" ]]; then
+    source "$HOME/.nvm/nvm.sh"
+    return 0
+  elif command -v brew &>/dev/null; then
+    local brew_nvm
+    brew_nvm="$(brew --prefix nvm 2>/dev/null)/nvm.sh"
+    if [[ -s "$brew_nvm" ]]; then
+      source "$brew_nvm"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+# Ask user to pick/install an nvm Node version interactively
+_nvm_pick_node() {
+  echo ""
+  warn "Node.js $MIN_NODE_MAJOR+ is required."
+
+  if ! _load_nvm; then
+    echo ""
+    error "nvm not found. Install it first:"
+    echo "    https://github.com/nvm-sh/nvm#installing-and-updating"
+    echo ""
+    echo "  Or install Node directly: https://nodejs.org"
+    exit 1
+  fi
+
+  echo ""
+  echo -e "  ${BOLD}Available Node versions via nvm:${NC}"
+  nvm ls --no-colors 2>/dev/null | grep -E "v[0-9]+" | head -20 || true
+  echo ""
+  ask "Enter version to use (e.g. 22, 20, lts/iron) or press Enter to install latest LTS:"
+  read -r nvm_version
+  nvm_version="${nvm_version:-lts/*}"
+
+  echo ""
+  info "Running: nvm use $nvm_version (will install if missing)..."
+  if ! nvm use "$nvm_version" 2>/dev/null; then
+    info "Not installed — running nvm install $nvm_version ..."
+    nvm install "$nvm_version"
+    nvm use "$nvm_version"
+  fi
+
+  # Re-export PATH so the new node is picked up in this shell session
+  export PATH="$(nvm which current | xargs dirname):$PATH"
+  ok "Node $(node --version) is now active"
+}
+
+# Generic semver compare: check actual >= minimum
+_version_ok() {
+  local actual_major=$1
+  local actual_minor=${2:-0}
+  local min_major=$3
+  local min_minor=${4:-0}
+  (( actual_major > min_major )) && return 0
+  (( actual_major == min_major && actual_minor >= min_minor )) && return 0
+  return 1
+}
+
+TOOL_CHECKS_HEADER
+
+  # ── Language-specific checks ─────────────────────────────────
+  case "$CHOSEN_LANGUAGE" in
+    TypeScript)
+      cat >> "$out" <<'NODE_CHECK'
+
+step "Checking Node.js..."
+
+# Check Node
+if command -v node &>/dev/null; then
+  NODE_VERSION=$(node --version | sed 's/v//')
+  NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d. -f1)
+  if _version_ok "$NODE_MAJOR" 0 "$MIN_NODE_MAJOR" 0; then
+    ok "Node.js v$NODE_VERSION ✔"
+  else
+    warn "Node.js v$NODE_VERSION is below minimum (v${MIN_NODE_MAJOR})"
+    _nvm_pick_node
+  fi
+else
+  warn "Node.js not found"
+  _nvm_pick_node
+fi
+
+# Check / select package manager
+step "Checking package manager..."
+PM="npm"
+PMX="npx"
+
+if command -v bun &>/dev/null; then
+  BUN_VERSION=$(bun --version)
+  BUN_MAJOR=$(echo "$BUN_VERSION" | cut -d. -f1)
+  if _version_ok "$BUN_MAJOR" 0 "$MIN_BUN_MAJOR" 0; then
+    PM="bun"; PMX="bunx"
+    ok "bun v$BUN_VERSION ✔"
+  else
+    warn "bun v$BUN_VERSION is below minimum (v${MIN_BUN_MAJOR})"
+    echo ""
+    ask "Upgrade bun? [Y/n]:"
+    read -r upgrade_bun
+    if [[ "${upgrade_bun:-y}" =~ ^[Yy]$ ]]; then
+      bun upgrade
+      ok "bun upgraded to $(bun --version)"
+      PM="bun"; PMX="bunx"
+    else
+      info "Falling back to npm"
+    fi
+  fi
+elif command -v pnpm &>/dev/null; then
+  PNPM_VERSION=$(pnpm --version)
+  PNPM_MAJOR=$(echo "$PNPM_VERSION" | cut -d. -f1)
+  if _version_ok "$PNPM_MAJOR" 0 "$MIN_PNPM_MAJOR" 0; then
+    PM="pnpm"; PMX="pnpm dlx"
+    ok "pnpm v$PNPM_VERSION ✔"
+  else
+    warn "pnpm v$PNPM_VERSION is below minimum (v${MIN_PNPM_MAJOR})"
+    echo ""
+    ask "Upgrade pnpm now? [Y/n]:"
+    read -r upgrade_pnpm
+    if [[ "${upgrade_pnpm:-y}" =~ ^[Yy]$ ]]; then
+      npm install -g pnpm@latest
+      ok "pnpm upgraded to $(pnpm --version)"
+      PM="pnpm"; PMX="pnpm dlx"
+    else
+      info "Falling back to npm"
+    fi
+  fi
+else
+  # npm is always present with Node — just check its version
+  NPM_VERSION=$(npm --version)
+  NPM_MAJOR=$(echo "$NPM_VERSION" | cut -d. -f1)
+  if _version_ok "$NPM_MAJOR" 0 "$MIN_NPM_MAJOR" 0; then
+    ok "npm v$NPM_VERSION ✔"
+  else
+    warn "npm v$NPM_VERSION is below minimum (v${MIN_NPM_MAJOR})"
+    echo ""
+    ask "Upgrade npm now? [Y/n]:"
+    read -r upgrade_npm
+    if [[ "${upgrade_npm:-y}" =~ ^[Yy]$ ]]; then
+      npm install -g npm@latest
+      ok "npm upgraded to $(npm --version)"
+    fi
+  fi
+fi
+
+ok "Using package manager: $PM"
+NODE_CHECK
+      ;;
+
+    Python)
+      cat >> "$out" <<'PYTHON_CHECK'
+
+step "Checking Python..."
+
+_python_bin=""
+for py in python3 python; do
+  if command -v "$py" &>/dev/null; then
+    _python_bin="$py"
+    break
+  fi
+done
+
+if [[ -z "$_python_bin" ]]; then
+  error "Python not found. Install it from https://python.org or via pyenv:"
+  echo "    brew install pyenv && pyenv install 3.12 && pyenv global 3.12"
+  exit 1
+fi
+
+PY_VERSION=$("$_python_bin" --version 2>&1 | awk '{print $2}')
+PY_MAJOR=$(echo "$PY_VERSION" | cut -d. -f1)
+PY_MINOR=$(echo "$PY_VERSION" | cut -d. -f2)
+
+if _version_ok "$PY_MAJOR" "$PY_MINOR" "$MIN_PYTHON_MAJOR" "$MIN_PYTHON_MINOR"; then
+  ok "Python $PY_VERSION ✔"
+else
+  warn "Python $PY_VERSION is below minimum (${MIN_PYTHON_MAJOR}.${MIN_PYTHON_MINOR})"
+  echo ""
+  echo "  Options:"
+  echo "    1) Use pyenv to install and switch version"
+  echo "    2) Exit and upgrade manually"
+  echo ""
+  ask "Choose [1/2] (default: 1):"
+  read -r py_choice
+  if [[ "${py_choice:-1}" == "1" ]]; then
+    if ! command -v pyenv &>/dev/null; then
+      error "pyenv not found. Install it first: brew install pyenv"
+      exit 1
+    fi
+    ask "Python version to install (e.g. 3.12.4) or Enter for latest 3.12:"
+    read -r py_install_version
+    py_install_version="${py_install_version:-3.12}"
+    info "Running: pyenv install $py_install_version && pyenv local $py_install_version"
+    pyenv install "$py_install_version" --skip-existing
+    pyenv local "$py_install_version"
+    export PATH="$(pyenv prefix)/bin:$PATH"
+    ok "Python $(python3 --version) is now active"
+  else
+    error "Please upgrade Python to ${MIN_PYTHON_MAJOR}.${MIN_PYTHON_MINOR}+ and re-run."
+    exit 1
+  fi
+fi
+
+# Check pip
+if ! command -v pip3 &>/dev/null && ! command -v pip &>/dev/null; then
+  warn "pip not found — attempting to bootstrap it..."
+  "$_python_bin" -m ensurepip --upgrade || {
+    error "Could not bootstrap pip. Install it manually."
+    exit 1
+  }
+fi
+ok "pip available ✔"
+PYTHON_CHECK
+      ;;
+
+    Rust)
+      cat >> "$out" <<'RUST_CHECK'
+
+step "Checking Rust toolchain..."
+
+if ! command -v rustc &>/dev/null; then
+  warn "Rust not found."
+  echo ""
+  ask "Install Rust via rustup now? [Y/n]:"
+  read -r install_rust
+  if [[ "${install_rust:-y}" =~ ^[Yy]$ ]]; then
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    source "$HOME/.cargo/env"
+    ok "Rust installed: $(rustc --version)"
+  else
+    error "Rust is required. Install from https://rustup.rs"
+    exit 1
+  fi
+else
+  RUST_VERSION=$(rustc --version | awk '{print $2}')
+  RUST_MAJOR=$(echo "$RUST_VERSION" | cut -d. -f1)
+  RUST_MINOR=$(echo "$RUST_VERSION" | cut -d. -f2)
+  if _version_ok "$RUST_MAJOR" "$RUST_MINOR" "$MIN_RUST_MAJOR" "$MIN_RUST_MINOR"; then
+    ok "rustc $RUST_VERSION ✔"
+  else
+    warn "rustc $RUST_VERSION is below minimum (${MIN_RUST_MAJOR}.${MIN_RUST_MINOR})"
+    echo ""
+    ask "Run 'rustup update' now? [Y/n]:"
+    read -r update_rust
+    if [[ "${update_rust:-y}" =~ ^[Yy]$ ]]; then
+      rustup update stable
+      ok "Rust updated: $(rustc --version)"
+    fi
+  fi
+fi
+
+if ! command -v cargo &>/dev/null; then
+  error "cargo not found. Re-install Rust via https://rustup.rs"
+  exit 1
+fi
+ok "cargo $(cargo --version | awk '{print $2}') ✔"
+RUST_CHECK
+      ;;
+
+    Go)
+      cat >> "$out" <<'GO_CHECK'
+
+step "Checking Go..."
+
+if ! command -v go &>/dev/null; then
+  error "Go not found. Install from https://go.dev/dl or:"
+  echo "    brew install go"
+  exit 1
+fi
+
+GO_VERSION=$(go version | awk '{print $3}' | sed 's/go//')
+GO_MAJOR=$(echo "$GO_VERSION" | cut -d. -f1)
+GO_MINOR=$(echo "$GO_VERSION" | cut -d. -f2)
+
+if _version_ok "$GO_MAJOR" "$GO_MINOR" "$MIN_GO_MAJOR" "$MIN_GO_MINOR"; then
+  ok "go $GO_VERSION ✔"
+else
+  warn "go $GO_VERSION is below minimum (${MIN_GO_MAJOR}.${MIN_GO_MINOR})"
+  echo ""
+  echo "  Download the latest Go from: https://go.dev/dl"
+  echo "  Or on macOS: brew upgrade go"
+  echo ""
+  ask "Continue anyway? [y/N]:"
+  read -r go_continue
+  if [[ ! "${go_continue:-n}" =~ ^[Yy]$ ]]; then
+    exit 1
+  fi
+fi
+GO_CHECK
+      ;;
+
+    PHP)
+      cat >> "$out" <<'PHP_CHECK'
+
+step "Checking PHP & Composer..."
+
+if ! command -v php &>/dev/null; then
+  error "PHP not found. Install it:"
+  echo "    brew install php"
+  echo "    or via your system package manager"
+  exit 1
+fi
+
+PHP_VERSION=$(php --version | head -1 | awk '{print $2}')
+PHP_MAJOR=$(echo "$PHP_VERSION" | cut -d. -f1)
+PHP_MINOR=$(echo "$PHP_VERSION" | cut -d. -f2)
+
+if _version_ok "$PHP_MAJOR" "$PHP_MINOR" "$MIN_PHP_MAJOR" "$MIN_PHP_MINOR"; then
+  ok "php $PHP_VERSION ✔"
+else
+  warn "php $PHP_VERSION is below minimum (${MIN_PHP_MAJOR}.${MIN_PHP_MINOR})"
+  echo ""
+  echo "  Upgrade PHP: brew upgrade php"
+  echo ""
+  ask "Continue anyway? [y/N]:"
+  read -r php_continue
+  if [[ ! "${php_continue:-n}" =~ ^[Yy]$ ]]; then
+    exit 1
+  fi
+fi
+
+if ! command -v composer &>/dev/null; then
+  warn "Composer not found."
+  echo ""
+  ask "Install Composer now? [Y/n]:"
+  read -r install_composer
+  if [[ "${install_composer:-y}" =~ ^[Yy]$ ]]; then
+    curl -sS https://getcomposer.org/installer | php
+    mv composer.phar /usr/local/bin/composer
+    chmod +x /usr/local/bin/composer
+    ok "Composer $(composer --version | awk '{print $3}') installed"
+  else
+    error "Composer is required. Install from https://getcomposer.org"
+    exit 1
+  fi
+else
+  ok "Composer $(composer --version | awk '{print $3}') ✔"
+fi
+PHP_CHECK
+      ;;
+  esac
 }
