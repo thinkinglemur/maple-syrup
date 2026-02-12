@@ -685,22 +685,31 @@ services:
 COMPOSE_HEADER_NODEPS
   fi
 
-  # DB service
-  if [[ -n "$CHOSEN_DATABASE" && -n "$CHOSEN_CACHE" ]]; then
-    cat >> "$out" <<COMPOSE_DB_AND_CACHE
+  # DB service — write depends_on entries then the full service block
+  if [[ -n "$CHOSEN_DATABASE" ]]; then
+    # depends_on entries
+    if [[ -n "$CHOSEN_CACHE" ]]; then
+      cat >> "$out" <<COMPOSE_DEPS_BOTH
       - db
       - cache
-  db:
-COMPOSE_DB_AND_CACHE
-  elif [[ -n "$CHOSEN_DATABASE" ]]; then
-    cat >> "$out" <<COMPOSE_DB
+COMPOSE_DEPS_BOTH
+    else
+      cat >> "$out" <<COMPOSE_DEP_DB
       - db
+COMPOSE_DEP_DB
+    fi
+
+    # db service header
+    cat >> "$out" <<'COMPOSE_DB_SVC'
   db:
-COMPOSE_DB
+COMPOSE_DB_SVC
+
+    # db service body — depends on which DB was chosen
     case "$CHOSEN_DATABASE" in
       PostgreSQL)
         cat >> "$out" <<'PGDB'
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER:     ${DB_USER:-app}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
@@ -714,6 +723,7 @@ PGDB
       MySQL)
         cat >> "$out" <<'MYDB'
     image: mysql:8.3
+    restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootsecret}
       MYSQL_DATABASE:      ${DB_NAME:-appdb}
@@ -728,6 +738,7 @@ MYDB
       MongoDB)
         cat >> "$out" <<'MONGO'
     image: mongo:7
+    restart: unless-stopped
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${DB_USER:-app}
       MONGO_INITDB_ROOT_PASSWORD: ${DB_PASSWORD:-secret}
@@ -737,14 +748,31 @@ MYDB
       - "27017:27017"
 MONGO
         ;;
+      SQLite)
+        # SQLite is file-based — no container needed, just a note
+        cat >> "$out" <<'SQLITE_NOTE'
+    # SQLite is file-based — no separate container required.
+    # The database file will be created at runtime inside the app container.
+    # Remove this db: block and the depends_on entry above if not needed.
+    image: alpine:3
+    command: echo "SQLite requires no service container"
+SQLITE_NOTE
+        ;;
+      Supabase|PlanetScale)
+        # Cloud-hosted — no local container, just a comment
+        cat >> "$out" <<CLOUD_DB_NOTE
+    # ${CHOSEN_DATABASE} is cloud-hosted — no local container needed.
+    # Set DATABASE_URL in your .env to point to your ${CHOSEN_DATABASE} instance.
+    image: alpine:3
+    command: echo "${CHOSEN_DATABASE} is cloud-hosted, no local container needed"
+CLOUD_DB_NOTE
+        ;;
     esac
-  fi
-
-  # Cache service — if only cache (no DB), add depends_on for cache
-  if [[ -n "$CHOSEN_CACHE" && -z "$CHOSEN_DATABASE" ]]; then
-    cat >> "$out" <<COMPOSE_CACHE_DEP
+  elif [[ -n "$CHOSEN_CACHE" ]]; then
+    # Cache only — add depends_on for cache
+    cat >> "$out" <<COMPOSE_DEP_CACHE
       - cache
-COMPOSE_CACHE_DEP
+COMPOSE_DEP_CACHE
   fi
   if [[ -n "$CHOSEN_CACHE" ]]; then
     case "$CHOSEN_CACHE" in
