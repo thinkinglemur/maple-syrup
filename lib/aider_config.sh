@@ -130,9 +130,6 @@ dirty-commits: true
 attribute-author: false
 attribute-committer: false
 
-# ── Context ───────────────────────────────────
-auto-read-files: true
-
 # ── Output ────────────────────────────────────
 pretty: true
 stream: true
