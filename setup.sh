@@ -13,7 +13,7 @@ if (( BASH_VERSINFO[0] < 4 )); then
 fi
 
 # ─────────────────────────────────────────────
-#  project-bootstrap / setup.sh
+#  maple-syrup / setup.sh
 #  Interactively configure a new project and
 #  generate a self-contained init.sh ready to commit.
 # ─────────────────────────────────────────────
@@ -29,8 +29,8 @@ if [[ ! -d "$LIB" ]]; then
   echo "  This usually means you only downloaded setup.sh rather than cloning"
   echo "  the full repository. Please run:"
   echo ""
-  echo "    git clone https://github.com/your-org/project-bootstrap.git"
-  echo "    cd project-bootstrap"
+  echo "    git clone https://github.com/your-org/maple-syrup.git"
+  echo "    cd maple-syrup"
   echo "    chmod +x setup.sh && ./setup.sh"
   echo ""
   exit 1
@@ -56,7 +56,7 @@ source "$LIB/generators/generate_init.sh"
 clear
 echo ""
 echo -e "${CYAN}╔══════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║       🚀  project-bootstrap  🚀          ║${NC}"
+echo -e "${CYAN}║       🚀  maple-syrup  🚀                 ║${NC}"
 echo -e "${CYAN}║   Bootstrap any project in minutes       ║${NC}"
 echo -e "${CYAN}╚══════════════════════════════════════════╝${NC}"
 echo ""
@@ -72,11 +72,16 @@ prompt_claude_api_key
 # ── Step 3: Project synopsis ──────────────────
 step "Project synopsis"
 echo -e "${YELLOW}Describe what you want to build. Be as detailed as you like.${NC}"
-echo -e "${DIM}(Type your synopsis. Press Ctrl+D on a new line when done)${NC}"
+echo -e "${DIM}When finished, press Enter then Ctrl+D on a blank new line.${NC}"
 echo ""
 PROJECT_SYNOPSIS=$(cat)
 echo ""
-info "Got it. Asking Claude to suggest your stack..."
+
+if [[ -z "$PROJECT_SYNOPSIS" ]]; then
+  error "Synopsis cannot be empty. Re-run setup.sh and describe your project."
+  exit 1
+fi
+ok "Synopsis captured (${#PROJECT_SYNOPSIS} chars)"
 
 # ── Step 4: Claude suggests the stack ─────────
 SUGGESTIONS=$(claude_suggest_stack "$PROJECT_SYNOPSIS" "$ANTHROPIC_API_KEY")
